@@ -1,9 +1,15 @@
 # cv-tracker
 
+<div align="center">
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)](https://opencv.org/)
 [![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen.svg)](#tests)
+
+English | [中文](README.zh-CN.md) | [术语表 Glossary](GLOSSARY.md)
+
+</div>
 
 Real-time multi-object tracking for static cameras. Detection → Kalman-filtered
 tracking → zones & tripwires → behavioral events — in one CLI, with **zero
