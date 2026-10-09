@@ -1,8 +1,17 @@
 # --- detector ---
+# type: "motion" (MOG2, weight-free, static camera only)
+#       "yolo"   (DNN, needs weights/xxx.onnx via scripts/download_model.py)
 detector:
-  min_area: 500        # ignore blobs smaller than this (px^2)
-  history: 500         # MOG2 background history (frames)
-  var_threshold: 16    # MOG2 sensitivity; lower = more sensitive
+  type: "motion"
+  min_area: 500        # motion only: ignore blobs smaller than this (px^2)
+  history: 500         # motion only: MOG2 background history (frames)
+  var_threshold: 16    # motion only: MOG2 sensitivity; lower = more sensitive
+  # --- yolo options ---
+  weights: "weights/yolo11n.onnx"
+  conf_thresh: 0.5     # yolo only: minimum class score
+  nms_thresh: 0.45     # yolo only: NMS IoU threshold
+  input_size: 640      # yolo only: model input resolution
+  classes: []          # yolo only: e.g. ["person", "car"]; empty = all 80 COCO
 
 # --- tracker (ByteTrack-style) ---
 tracker:

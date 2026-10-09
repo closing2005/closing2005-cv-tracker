@@ -46,8 +46,10 @@ frame → [Detector] → [MultiTracker] → [Zones / Tripwires] → [Events] →
   rate and a quality verdict, so you know whether to trust the numbers or
   retune.
 - **Pluggable detectors.** Ships with a weight-free MOG2 motion detector for
-  static cameras; subclass `Detector` to plug in YOLO via `cv2.dnn` without
-  touching the tracker.
+  static cameras; or switch to YOLO11n via `cv2.dnn` (see [docs/yolo_detector.md](docs/yolo_detector.md)
+  for the theory, [docs/comparison.md](docs/comparison.md) for MOG2 vs YOLO
+  benchmarks). Subclass `Detector` to plug in anything else without touching
+  the tracker.
 
 ## Quickstart
 
@@ -59,6 +61,10 @@ python -m src.main --source 0 --show
 
 # video file, headless, save trajectories + summary
 python -m src.main --source traffic.mp4 --no-show --out runs/run1 --max-frames 900
+
+# YOLO detector instead of motion (download weights first, ~11MB)
+python scripts/download_model.py
+# then set detector.type: "yolo" in config.yaml
 
 # run the test suite (no camera needed)
 python -m pytest tests/ -q
@@ -238,7 +244,7 @@ config.yaml     all thresholds, zones, tripwires, event parameters
 
 ## Roadmap
 
-- [ ] YOLOv8 DNN detector plug-in (`cv2.dnn`, still zero extra deps beyond weights)
+- [x] YOLOv8/YOLO11 DNN detector plug-in (`cv2.dnn`, weights via `scripts/download_model.py`)
 - [ ] Appearance embeddings for long-occlusion re-identification
 - [ ] Multi-camera handoff
 - [ ] Web dashboard for live counts and event feed

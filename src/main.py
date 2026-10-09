@@ -69,6 +69,27 @@ def draw(frame, tracks, zones, wires, events, timings):
     return frame
 
 
+def _build_detector(det_c):
+    dtype = det_c.get("type", "motion")
+    if dtype == "yolo":
+        from src.yolo_detector import YoloDetector
+        weights = det_c.get("weights", "weights/yolo11n.onnx")
+        if not os.path.exists(weights):
+            print(f"weights not found: {weights}", file=sys.stderr)
+            print("run: python scripts/download_model.py", file=sys.stderr)
+            sys.exit(1)
+        classes = det_c.get("classes") or None
+        return YoloDetector(
+            weights,
+            conf_thresh=det_c.get("conf_thresh", 0.5),
+            nms_thresh=det_c.get("nms_thresh", 0.45),
+            input_size=det_c.get("input_size", 640),
+            classes=classes)
+    return MotionDetector(min_area=det_c.get("min_area", 500),
+                          history=det_c.get("history", 500),
+                          var_threshold=det_c.get("var_threshold", 16))
+
+
 def main():
     ap = argparse.ArgumentParser(description="Real-time multi-object tracker")
     ap.add_argument("--source", default="0",
@@ -94,9 +115,7 @@ def main():
         sys.exit(1)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
 
-    detector = MotionDetector(min_area=det_c.get("min_area", 500),
-                              history=det_c.get("history", 500),
-                              var_threshold=det_c.get("var_threshold", 16))
+    detector = _build_detector(det_c)
     tracker = MultiTracker(
         high_thresh=tr_c.get("high_thresh", 0.5),
         low_thresh=tr_c.get("low_thresh", 0.15),

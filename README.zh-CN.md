@@ -30,7 +30,7 @@
 - **完整的轨迹生命周期管理**：`候选 → 确认 → 丢失 → 删除`。瞬时闪烁产生的伪影无法转正，只有经确认的轨迹才会被计数与分析。
 - **行为事件理解，而不仅是画框。** 徘徊、超速、逆行、聚集——全部基于轨迹历史计算，无需额外模型。每个事件均附带证据（轨迹编号、帧号、测量值），结果可审计。
 - **内置质量自检。** 会话摘要报告轨迹碎片率与质量结论，便于判断统计结果的可信度。
-- **检测器可插拔。** 内置免权重的 MOG2 运动检测器（摄像头静止即可运行）；如需 YOLO 等深度检测器，继承 `Detector` 类即可接入，跟踪器无需改动。
+- **检测器可插拔。** 内置免权重的 MOG2 运动检测器（摄像头静止即可运行）；或切换为 YOLO11n（`cv2.dnn`，原理见 [docs/yolo_detector.md](docs/yolo_detector.md)，MOG2 vs YOLO 实测对比见 [docs/comparison.md](docs/comparison.md)）。如需其他检测器，继承 `Detector` 类即可接入，跟踪器无需改动。
 
 ## 快速上手
 
@@ -42,6 +42,10 @@ python -m src.main --source 0 --show
 
 # 处理视频文件，无界面运行，结果落盘
 python -m src.main --source traffic.mp4 --no-show --out runs/run1 --max-frames 900
+
+# 改用 YOLO 检测器（先下载权重，约 11MB）
+python scripts/download_model.py
+# 然后在 config.yaml 里设 detector.type: "yolo"
 
 # 运行测试（无需摄像头）
 python -m pytest tests/ -q
@@ -198,7 +202,7 @@ config.yaml     阈值、区域、绊线、事件参数
 
 ## 后续规划
 
-- [ ] YOLOv8 检测器插件（`cv2.dnn`，除模型权重外不引入新依赖）
+- [x] YOLOv8/YOLO11 检测器插件（`cv2.dnn`，权重由 `scripts/download_model.py` 获取）
 - [ ] 外观 embedding，支持长时遮挡后的重识别
 - [ ] 多摄像头轨迹接力
 - [ ] 实时计数与事件流的 Web 面板
