@@ -108,7 +108,7 @@ python examples/station_demo.py --source market.mp4 --out runs/market.mp4 \
 Tested on an 18-second fish-market clip (fixed camera, ~12 people):
 8 up / 12 down across the tripwire, stable IDs throughout.
 
-![fish-market tracking demo](docs/market_demo.gif)
+![fish-market tracking demo](docs/market_demo_hd.gif)
 
 ## Benchmark
 
