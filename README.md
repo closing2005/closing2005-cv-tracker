@@ -254,11 +254,11 @@ and every zone, tripwire and event rule is customizable — no black box.
 - **Quick prototypes for clients** — demo a working counter in an afternoon
   before committing to hardware.
 
-**Where it doesn't fit** (honest): high-density crowds (subway stations —
+**Where it doesn't fit** : high-density crowds (subway stations —
 ID switches under heavy occlusion), 24/7 high-reliability deployments,
 or anything needing face recognition.
 
-## Limitations (honest)
+## Limitations 
 
 - The bundled detector is motion-based: it needs a **static camera** and
   struggles with camouflaged or very slow targets. Plug in a DNN detector
