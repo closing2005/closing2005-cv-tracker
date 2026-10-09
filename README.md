@@ -240,11 +240,23 @@ config.yaml     all thresholds, zones, tripwires, event parameters
 
 ## Use cases
 
-- Retail footfall counting and dwell-time analysis
-- Entry/exit counting at doors and gates
-- Loitering alerts for unattended areas
-- Wrong-way detection on escalators, corridors, one-way lanes
-- Traffic-adjacent counting where a static camera overlooks the scene
+**Where this wins vs. commercial systems** (Hikvision/Dahua):
+zero software cost, runs fully on-premise (video never leaves your network),
+and every zone, tripwire and event rule is customizable — no black box.
+
+- **Small retail footfall counting** — a few hundred visitors a day, where a
+  commercial people-counting camera is overkill. Tripwire + dwell analysis
+  out of the box.
+- **Construction site / warehouse intrusion alerts** — few targets, simple
+  scene. MOG2 mode needs no GPU, runs on an old PC.
+- **Office / server-room loitering detection** — privacy-sensitive areas
+  that require local-only processing.
+- **Quick prototypes for clients** — demo a working counter in an afternoon
+  before committing to hardware.
+
+**Where it doesn't fit** (honest): high-density crowds (subway stations —
+ID switches under heavy occlusion), 24/7 high-reliability deployments,
+or anything needing face recognition.
 
 ## Limitations (honest)
 

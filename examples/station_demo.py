@@ -23,6 +23,8 @@ def main():
     ap.add_argument("--out", default="runs/station_result.mp4")
     ap.add_argument("--weights", default="weights/yolo11n.onnx")
     ap.add_argument("--conf", type=float, default=0.4)
+    ap.add_argument("--exclude", default="",
+                    help="mask regions as x1,y1,x2,y2;... (e.g. billboards)")
     args = ap.parse_args()
 
     if not os.path.exists(args.weights):
@@ -33,6 +35,17 @@ def main():
 
     det = YoloDetector(args.weights, conf_thresh=args.conf, classes=["person"])
     tracker = MultiTracker(n_init=3, max_lost=30, use_reid=True, reid_thresh=0.5)
+
+    # 屏蔽区域（如广告牌）：落在其中的检测框直接丢弃
+    masks = []
+    if args.exclude:
+        for r in args.exclude.split(";"):
+            masks.append([int(v) for v in r.split(",")])
+
+    def in_mask(box):
+        cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        return any(x1 <= cx <= x2 and y1 <= cy <= y2 for x1, y1, x2, y2 in masks)
+
     cap = cv2.VideoCapture(args.source)
     w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -50,6 +63,7 @@ def main():
         if not ok:
             break
         boxes = det.detect(frame)
+        boxes = [b for b in boxes if not in_mask(b)]
         tracks = tracker.update(boxes, frame=frame)
         confirmed = [t for t in tracks if t.state == TrackState.CONFIRMED]
         max_tracks = max(max_tracks, len(confirmed))
@@ -59,10 +73,10 @@ def main():
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(frame, f"#{t.id}", (x1, y1 - 6),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        # 画绊线 + 计数面板
+        # 画绊线 + 计数面板（留边距，防截断）
         cv2.line(frame, (0, h // 2), (w, h // 2), (255, 0, 0), 2)
-        cv2.putText(frame, f"up: {wire.forward}  down: {wire.backward}  live: {len(confirmed)}",
-                    (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
+        cv2.putText(frame, f"up:{wire.forward} down:{wire.backward} live:{len(confirmed)}",
+                    (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
         vw.write(frame)
         if fi % 100 == 0:
             print(f"frame {fi}/{n}", flush=True)
