@@ -259,10 +259,10 @@ config.yaml     all thresholds, zones, tripwires, event parameters
 
 ## Roadmap
 
-- [x] YOLOv8/YOLO11 DNN detector plug-in (`cv2.dnn`, weights via `scripts/download_model.py`)
-- [x] Appearance embeddings for long-occlusion re-identification (`src/appearance.py`, zero-weight HSV histograms)
-- [x] Multi-camera handover (`src/multicam.py`, shared appearance gallery)
-- [x] Web dashboard for live counts and event feed (`src/dashboard.py`, stdlib only)
+- [x] YOLOv8/YOLO11 DNN detector plug-in — [`src/yolo_detector.py`](src/yolo_detector.py) · [theory](docs/yolo_detector.md) · [MOG2 vs YOLO](docs/comparison.md)
+- [x] Appearance re-identification for long occlusions — [`src/appearance.py`](src/appearance.py) · zero-weight HSV histograms
+- [x] Multi-camera handover with global identities — [`src/multicam.py`](src/multicam.py)
+- [x] Live web dashboard (counts + event stream) — [`src/dashboard.py`](src/dashboard.py) · stdlib only
 - [ ] Multi-camera handoff
 - [ ] Web dashboard for live counts and event feed
 

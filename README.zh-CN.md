@@ -212,10 +212,10 @@ config.yaml     阈值、区域、绊线、事件参数
 
 ## 后续规划
 
-- [x] YOLOv8/YOLO11 检测器插件（`cv2.dnn`，权重由 `scripts/download_model.py` 获取）
-- [x] 外观 embedding，支持长时遮挡后的重识别（`src/appearance.py`，零权重 HSV 直方图）
-- [x] 多摄像头轨迹接力（`src/multicam.py`，共享外观库）
-- [x] 实时计数与事件流的 Web 面板（`src/dashboard.py`，仅标准库）
+- [x] YOLOv8/YOLO11 检测器插件 — [`src/yolo_detector.py`](src/yolo_detector.py) · [原理](docs/yolo_detector.md) · [MOG2 vs YOLO 实测](docs/comparison.md)
+- [x] 外观重识别，支持长时遮挡 — [`src/appearance.py`](src/appearance.py) · 零权重 HSV 直方图
+- [x] 多摄像头轨迹接力，全局统一身份 — [`src/multicam.py`](src/multicam.py)
+- [x] 实时计数与事件流的 Web 面板 — [`src/dashboard.py`](src/dashboard.py) · 仅标准库
 - [ ] 多摄像头轨迹接力
 - [ ] 实时计数与事件流的 Web 面板
 
