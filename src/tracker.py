@@ -21,6 +21,11 @@ import numpy as np
 from .hungarian import linear_sum_assignment
 from .kalman import KalmanBoxTracker
 
+try:
+    from .appearance import AppearanceEmbedding, ReIDGallery
+except ImportError:  # appearance is optional until first use
+    AppearanceEmbedding, ReIDGallery = None, None
+
 
 class TrackState(Enum):
     TENTATIVE = auto()
@@ -58,18 +63,28 @@ class Track:
         self.time_since_update = 0
         self.n_init = n_init
         self.history = [tuple(bbox)]  # confirmed-box centers over time
+        self.embedding = None  # appearance vector (EMA-smoothed)
 
     def predict(self):
         self.bbox = self.kf.predict()
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, bbox, score):
+    def update(self, bbox, score, embedding=None):
         self.bbox = self.kf.update(bbox)
         self.score = score
         self.hits += 1
         self.time_since_update = 0
         self.history.append(tuple(self.bbox))
+        if embedding is not None:
+            # Exponential moving average: adapt to slow appearance drift
+            # (lighting, pose) while resisting single-frame noise.
+            if self.embedding is None:
+                self.embedding = embedding
+            else:
+                v = 0.3 * embedding + 0.7 * self.embedding
+                n = float((v ** 2).sum() ** 0.5)
+                self.embedding = v / n if n > 1e-9 else v
         if self.state == TrackState.TENTATIVE and self.hits >= self.n_init:
             self.state = TrackState.CONFIRMED
         elif self.state == TrackState.LOST:
@@ -86,21 +101,39 @@ class Track:
 
 class MultiTracker:
     def __init__(self, high_thresh=0.5, low_thresh=0.15, max_iou_dist=0.7,
-                 n_init=3, max_age=30, max_lost=60):
+                 n_init=3, max_age=30, max_lost=60,
+                 use_reid=False, reid_thresh=0.6):
         self.high_thresh = high_thresh
         self.low_thresh = low_thresh
         self.max_iou_dist = max_iou_dist  # min IoU = 1 - this
         self.n_init = n_init
         self.max_age = max_age      # frames before Tentative -> Deleted
         self.max_lost = max_lost    # frames before Lost -> Deleted
+        self.use_reid = use_reid
+        self.reid_thresh = reid_thresh
         self.tracks = []
         self.id_switches = 0  # self-diagnostic counter
+        self._embedder = None
+        self._gallery = None
+        if use_reid:
+            from .appearance import AppearanceEmbedding, ReIDGallery
+            self._embedder = AppearanceEmbedding()
+            self._gallery = ReIDGallery()
 
     # -- public ------------------------------------------------------
-    def update(self, detections):
-        """detections: [[x1,y1,x2,y2,score], ...]. Returns confirmed Tracks."""
+    def update(self, detections, frame=None):
+        """detections: [[x1,y1,x2,y2,score], ...].
+        frame: optional BGR image, needed for appearance embeddings.
+        Returns confirmed Tracks."""
         high = [d for d in detections if d[4] >= self.high_thresh]
         low = [d for d in detections if self.low_thresh <= d[4] < self.high_thresh]
+
+        # Appearance vectors for high detections (stage-3 re-ID fuel)
+        det_embs = []
+        if self.use_reid and frame is not None:
+            det_embs = [self._embedder.embed(frame, d[:4]) for d in high]
+        else:
+            det_embs = [None] * len(high)
 
         for t in self.tracks:
             t.predict()
@@ -110,21 +143,31 @@ class MultiTracker:
         # Stage 1: high-confidence detections
         m1, u_tracks, u_high = self._associate(live, high)
         for ti, di in m1:
-            live[ti].update(high[di][:4], high[di][4])
+            live[ti].update(high[di][:4], high[di][4], det_embs[di])
+            if self.use_reid:
+                self._gallery.update(live[ti].id, live[ti].embedding)
 
         # Stage 2: low-confidence detections rescue unmatched tracks
         remaining = [live[i] for i in u_tracks]
         m2, u_tracks2, _ = self._associate(remaining, low)
         for ti, di in m2:
             remaining[ti].update(low[di][:4], low[di][4])
-
-        rescued = {remaining[i] for i, _ in m2}
         for i in u_tracks2:
             remaining[i].mark_lost()
 
-        # New tracks from unmatched high detections
+        # Stage 3: appearance re-ID -- match leftover LOST tracks against
+        # unmatched high detections by looks, not position. This is what
+        # survives long occlusions where Kalman prediction has drifted.
+        if self.use_reid and frame is not None:
+            lost = [t for t in remaining
+                    if t.state == TrackState.LOST and t.embedding is not None]
+            u_high = self._reid_match(lost, high, u_high, det_embs)
+
+        # New tracks from still-unmatched high detections
         for di in u_high:
-            self.tracks.append(Track(high[di][:4], high[di][4], self.n_init))
+            t = Track(high[di][:4], high[di][4], self.n_init)
+            t.embedding = det_embs[di]
+            self.tracks.append(t)
 
         # Age out
         for t in self.tracks:
@@ -132,9 +175,37 @@ class MultiTracker:
                 t.state = TrackState.DELETED
             elif t.state == TrackState.LOST and t.time_since_update > self.max_lost:
                 t.state = TrackState.DELETED
+                if self.use_reid:
+                    self._gallery.forget(t.id)
 
         self.tracks = [t for t in self.tracks if t.state != TrackState.DELETED]
         return [t for t in self.tracks if t.state == TrackState.CONFIRMED]
+
+    def _reid_match(self, lost_tracks, high, u_high, det_embs):
+        """Greedy appearance matching. Returns remaining unmatched det indices."""
+        if not lost_tracks or not u_high:
+            return u_high
+        scored = []  # (score, track, det_idx)
+        for t in lost_tracks:
+            for di in u_high:
+                emb = det_embs[di]
+                if emb is None:
+                    continue
+                s = AppearanceEmbedding.similarity(emb, t.embedding)
+                if s >= self.reid_thresh:
+                    scored.append((s, t, di))
+        scored.sort(reverse=True)
+        used_tracks, used_dets = set(), set()
+        for s, t, di in scored:
+            if t.id in used_tracks or di in used_dets:
+                continue
+            used_tracks.add(t.id)
+            used_dets.add(di)
+            t.update(high[di][:4], high[di][4], det_embs[di])
+            if self.use_reid:
+                self._gallery.update(t.id, t.embedding)
+            self.id_switches += 0  # re-ID by design, not a switch
+        return [di for di in u_high if di not in used_dets]
 
     # -- internals ---------------------------------------------------
     def _associate(self, tracks, detections):

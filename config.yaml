@@ -21,6 +21,8 @@ tracker:
   n_init: 3            # hits before Tentative -> Confirmed
   max_age: 30          # frames before a Tentative track is deleted
   max_lost: 60         # frames before a Lost track is deleted
+  use_reid: false      # appearance re-ID for long occlusions (needs frame)
+  reid_thresh: 0.6     # min cosine similarity to re-identify
 
 # --- zones & tripwires (pixel coords, tune to your camera) ---
 zones:

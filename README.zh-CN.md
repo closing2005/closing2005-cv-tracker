@@ -29,6 +29,9 @@
 - **匈牙利算法手写实现**（`src/hungarian.py`）：O(n³) 的 Kuhn-Munkres 算法，支持矩形代价矩阵，不依赖 SciPy，无黑盒。
 - **完整的轨迹生命周期管理**：`候选 → 确认 → 丢失 → 删除`。瞬时闪烁产生的伪影无法转正，只有经确认的轨迹才会被计数与分析。
 - **行为事件理解，而不仅是画框。** 徘徊、超速、逆行、聚集——全部基于轨迹历史计算，无需额外模型。每个事件均附带证据（轨迹编号、帧号、测量值），结果可审计。
+- **外观重识别（可选）。** 零权重的 HSV 直方图 embedding，让轨迹在卡尔曼预测已漂移的*长*遮挡后仍能找回身份。`tracker.use_reid: true` 开启。
+- **多摄像头接力。** `MultiCameraTracker` 通过共享外观库在多视角间保持全局统一身份——"2 号镜头的这个人就是刚离开 1 号镜头的那位"。
+- **实时 Web 面板。** `--dashboard 8080`：浏览器里看实时计数、FPS 与事件流。仅标准库，无新增依赖。
 - **内置质量自检。** 会话摘要报告轨迹碎片率与质量结论，便于判断统计结果的可信度。
 - **检测器可插拔。** 内置免权重的 MOG2 运动检测器（摄像头静止即可运行）；或切换为 YOLO11n（`cv2.dnn`，原理见 [docs/yolo_detector.md](docs/yolo_detector.md)，MOG2 vs YOLO 实测对比见 [docs/comparison.md](docs/comparison.md)）。如需其他检测器，继承 `Detector` 类即可接入，跟踪器无需改动。
 
@@ -46,6 +49,9 @@ python -m src.main --source traffic.mp4 --no-show --out runs/run1 --max-frames 9
 # 改用 YOLO 检测器（先下载权重，约 11MB）
 python scripts/download_model.py
 # 然后在 config.yaml 里设 detector.type: "yolo"
+
+# 实时 Web 面板：http://127.0.0.1:8080
+python -m src.main --source 0 --dashboard 8080 --no-show
 
 # 运行测试（无需摄像头）
 python -m pytest tests/ -q
@@ -175,13 +181,17 @@ python -m pytest tests/ -q
 ```
 src/
   detector.py   运动检测器(MOG2)，及供 DNN 接入的 Detector 接口
+  yolo_detector.py  YOLO11n via cv2.dnn（原理见 docs/yolo_detector.md）
   kalman.py     单目标卡尔曼滤波，过程噪声自适应
   hungarian.py  手写 Kuhn-Munkres 实现，不依赖 SciPy
-  tracker.py    多目标跟踪器：两阶段关联 + 轨迹状态机
+  tracker.py    多目标跟踪器：三阶段关联（IoU + 外观重识别）+ 轨迹状态机
+  appearance.py 零权重 HSV embedding + 重识别库
+  multicam.py   多摄像头接力，全局统一身份
+  dashboard.py  实时 Web 面板（标准库 HTTP + SSE）
   zones.py      多边形区域(进出/停留统计) + 有向绊线
   events.py     徘徊 / 超速 / 逆行 / 聚集检测器
   analytics.py  轨迹 CSV 落盘 + 会话摘要 + 质量自检
-  main.py       命令行入口、各阶段计时、实时可视化
+  main.py       命令行入口、各阶段计时、实时可视化、--dashboard
 tests/          18 个合成测试，无需摄像头
 config.yaml     阈值、区域、绊线、事件参数
 ```
@@ -203,7 +213,9 @@ config.yaml     阈值、区域、绊线、事件参数
 ## 后续规划
 
 - [x] YOLOv8/YOLO11 检测器插件（`cv2.dnn`，权重由 `scripts/download_model.py` 获取）
-- [ ] 外观 embedding，支持长时遮挡后的重识别
+- [x] 外观 embedding，支持长时遮挡后的重识别（`src/appearance.py`，零权重 HSV 直方图）
+- [x] 多摄像头轨迹接力（`src/multicam.py`，共享外观库）
+- [x] 实时计数与事件流的 Web 面板（`src/dashboard.py`，仅标准库）
 - [ ] 多摄像头轨迹接力
 - [ ] 实时计数与事件流的 Web 面板
 

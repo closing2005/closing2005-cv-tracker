@@ -42,6 +42,14 @@ frame → [Detector] → [MultiTracker] → [Zones / Tripwires] → [Events] →
   motion, and crowding — computed from track history alone, no extra model.
   Every event carries its evidence (track id, frame, measured value), so
   results are auditable, not magic.
+- **Appearance re-ID (optional).** Zero-weight HSV-histogram embeddings let
+  tracks survive *long* occlusions where Kalman prediction has drifted.
+  Enable with `tracker.use_reid: true`.
+- **Multi-camera handover.** `MultiCameraTracker` keeps one global identity
+  across views via a shared appearance gallery — "the person in cam 2 is the
+  same one who left cam 1."
+- **Live web dashboard.** `--dashboard 8080`: real-time counts, FPS and event
+  stream in the browser. Stdlib only, no new dependencies.
 - **Tracker self-diagnostics.** The session summary reports a fragmentation
   rate and a quality verdict, so you know whether to trust the numbers or
   retune.
@@ -65,6 +73,9 @@ python -m src.main --source traffic.mp4 --no-show --out runs/run1 --max-frames 9
 # YOLO detector instead of motion (download weights first, ~11MB)
 python scripts/download_model.py
 # then set detector.type: "yolo" in config.yaml
+
+# live web dashboard at http://127.0.0.1:8080
+python -m src.main --source 0 --dashboard 8080 --no-show
 
 # run the test suite (no camera needed)
 python -m pytest tests/ -q
@@ -212,13 +223,17 @@ python -m pytest tests/ -q
 ```
 src/
   detector.py   motion detector (MOG2) + Detector interface for DNN plug-ins
+  yolo_detector.py  YOLO11n via cv2.dnn (see docs/yolo_detector.md)
   kalman.py     single-target Kalman filter, adaptive process noise
   hungarian.py  Kuhn-Munkres from scratch, no SciPy
-  tracker.py    multi-object tracker: 2-stage association + track state machine
+  tracker.py    multi-object tracker: 3-stage association (IoU + re-ID) + state machine
+  appearance.py zero-weight HSV embeddings + re-ID gallery
+  multicam.py   multi-camera handover with global identities
+  dashboard.py  live web dashboard (stdlib HTTP + SSE)
   zones.py      polygon zones (entry/exit/dwell) + directed tripwires
   events.py     loitering / speeding / wrong-way / crowding detectors
   analytics.py  trajectory CSV recording + session summary + quality check
-  main.py       CLI, per-stage timing, live visualization
+  main.py       CLI, per-stage timing, live visualization, --dashboard
 tests/          18 synthetic tests, no camera required
 config.yaml     all thresholds, zones, tripwires, event parameters
 ```
@@ -245,7 +260,9 @@ config.yaml     all thresholds, zones, tripwires, event parameters
 ## Roadmap
 
 - [x] YOLOv8/YOLO11 DNN detector plug-in (`cv2.dnn`, weights via `scripts/download_model.py`)
-- [ ] Appearance embeddings for long-occlusion re-identification
+- [x] Appearance embeddings for long-occlusion re-identification (`src/appearance.py`, zero-weight HSV histograms)
+- [x] Multi-camera handover (`src/multicam.py`, shared appearance gallery)
+- [x] Web dashboard for live counts and event feed (`src/dashboard.py`, stdlib only)
 - [ ] Multi-camera handoff
 - [ ] Web dashboard for live counts and event feed
 

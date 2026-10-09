@@ -100,6 +100,8 @@ def main():
     ap.add_argument("--show", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--max-frames", type=int, default=0,
                     help="stop after N frames (0 = unlimited)")
+    ap.add_argument("--dashboard", type=int, default=0,
+                    help="start web dashboard on this port (0 = disabled)")
     args = ap.parse_args()
 
     cfg = load_config(args.config)
@@ -122,7 +124,9 @@ def main():
         max_iou_dist=tr_c.get("max_iou_dist", 0.7),
         n_init=tr_c.get("n_init", 3),
         max_age=tr_c.get("max_age", 30),
-        max_lost=tr_c.get("max_lost", 60))
+        max_lost=tr_c.get("max_lost", 60),
+        use_reid=tr_c.get("use_reid", False),
+        reid_thresh=tr_c.get("reid_thresh", 0.6))
 
     zones = [Zone(z["name"], z["polygon"]) for z in cfg.get("zones", [])]
     wires = [Tripwire(w["name"], w["p1"], w["p2"])
@@ -149,9 +153,16 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     recorder = TrajectoryRecorder(os.path.join(args.out, "trajectories.csv"))
 
+    dash = None
+    if args.dashboard:
+        from src.dashboard import DashboardState, start_dashboard
+        dash = DashboardState()
+        start_dashboard(dash, port=args.dashboard)
+
     timings = {}
     frame_idx = 0
     done_tracks = []
+    fps_t0 = time.perf_counter()
     try:
         while True:
             ok, frame = cap.read()
@@ -160,7 +171,7 @@ def main():
             t0 = time.perf_counter()
             dets = detector.detect(frame)
             t1 = time.perf_counter()
-            tracks = tracker.update(dets)
+            tracks = tracker.update(dets, frame=frame if tracker.use_reid else None)
             t2 = time.perf_counter()
             fresh = []
             for z in zones:
@@ -183,6 +194,11 @@ def main():
                     break
 
             frame_idx += 1
+            if dash is not None:
+                elapsed = time.perf_counter() - fps_t0
+                dash.update(tracks, fps=frame_idx / elapsed if elapsed > 0 else 0)
+                for e in fresh:
+                    dash.push_event(e)
             if frame_idx % 60 == 0:
                 print(f"frame {frame_idx}: {len(tracks)} tracks, "
                       f"detect {timings['detect']:.1f}ms, "
