@@ -90,6 +90,8 @@ python examples/station_demo.py --source market.mp4 --out runs/market.mp4 \
 已在一段 18 秒的鱼市场实拍（固定机位，约 12 人）上验证：
 绊线上行 8 / 下行 12，全程 ID 稳定。
 
+![鱼市场多目标跟踪演示](docs/market_demo.gif)
+
 ## 运行示例
 
 ```
