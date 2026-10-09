@@ -1,0 +1,31 @@
+# --- detector ---
+detector:
+  min_area: 500        # ignore blobs smaller than this (px^2)
+  history: 500         # MOG2 background history (frames)
+  var_threshold: 16    # MOG2 sensitivity; lower = more sensitive
+
+# --- tracker (ByteTrack-style) ---
+tracker:
+  high_thresh: 0.5     # stage-1 association threshold
+  low_thresh: 0.15     # stage-2 rescue threshold
+  max_iou_dist: 0.7    # reject matches with cost above this (1 - IoU)
+  n_init: 3            # hits before Tentative -> Confirmed
+  max_age: 30          # frames before a Tentative track is deleted
+  max_lost: 60         # frames before a Lost track is deleted
+
+# --- zones & tripwires (pixel coords, tune to your camera) ---
+zones:
+  - name: "door"
+    polygon: [[40, 200], [280, 200], [280, 440], [40, 440]]
+
+tripwires:
+  - name: "gate"
+    p1: [160, 60]
+    p2: [160, 420]
+
+# --- behavioral events ---
+events:
+  loitering: { enabled: true, radius_px: 40, min_frames: 150 }
+  speeding:  { enabled: true, max_px_per_sec: 300 }
+  wrong_way: { enabled: true, flow: [1, 0] }   # expected: moving right
+  crowding:  { enabled: false, max_tracks: 5 }
