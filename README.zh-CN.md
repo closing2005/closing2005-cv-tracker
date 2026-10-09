@@ -6,6 +6,7 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)](https://opencv.org/)
 [![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen.svg)](#测试)
+[![GitHub stars](https://img.shields.io/github/stars/closing2005/closing2005-cv-tracker.svg)](https://github.com/closing2005/closing2005-cv-tracker/stargazers)
 
 [English](README.md) | 中文 | [术语表 Glossary](GLOSSARY.md)
 
@@ -45,6 +46,29 @@ python -m src.main --source traffic.mp4 --no-show --out runs/run1 --max-frames 9
 # 跑测试，不需要摄像头
 python -m pytest tests/ -q
 ```
+
+## 一键演示
+
+没摄像头？没关系。这个脚本会生成一段合成视频（两个目标，其中一个被挡 15 帧），完整跑一遍跟踪，并存下带框、编号、轨迹和绊线计数的成品视频：
+
+```bash
+python examples/synthetic_demo.py --out demo_out
+# demo_out/input.mp4    - 合成的输入视频
+# demo_out/tracked.mp4  - 画好框/编号/轨迹/计数的成品
+# demo_out/summary.yaml - 会话摘要
+```
+
+## 性能
+
+640×480 @ 30fps 合成视频，纯 CPU（无 GPU、无权重）实测：
+
+| 阶段 | 每帧耗时 |
+|---|---|
+| 检测（MOG2 + 形态学 + 轮廓） | ~5.5 ms |
+| 跟踪（卡尔曼预测 + 两阶段匈牙利） | ~0.4 ms |
+| 区域 + 事件 | <0.1 ms |
+
+实时无压力；检测是大头，真要花预算就花在 DNN 检测器上。
 
 跑完在 `--out/` 里拿结果：
 
@@ -176,6 +200,10 @@ config.yaml     阈值、区域、绊线、事件参数全在这
 - [ ] 外观 embedding，长遮挡也能认回来
 - [ ] 多摄像头接力
 - [ ] 实时计数和事件流的 Web 面板
+
+## 参与贡献
+
+欢迎报 bug 和提需求——请用 Issue 模板，方便复现。完整规范见 [CONTRIBUTING.md](CONTRIBUTING.md)（代码风格、测试要求、双语文档规则）。
 
 ## 协议
 

@@ -1,0 +1,28 @@
+name: Bug report
+description: Something doesn't track right
+labels: [bug]
+body:
+  - type: input
+    attributes:
+      label: What happened
+      description: What did you see vs. what did you expect?
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Source
+      description: Webcam index, video file (codec/resolution/fps), or synthetic demo?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: config.yaml changes
+      description: Paste any values you changed from the defaults
+  - type: textarea
+    attributes:
+      label: Session summary
+      description: Paste the ---- session summary ---- output
+  - type: input
+    attributes:
+      label: Environment
+      description: OS, Python version, opencv-python version (`python -c "import cv2; print(cv2.__version__)"`)

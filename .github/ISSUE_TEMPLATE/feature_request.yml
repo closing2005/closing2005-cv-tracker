@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest an idea for cv-tracker
+labels: [enhancement]
+body:
+  - type: input
+    attributes:
+      label: The idea
+      description: What should it do?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Why
+      description: What real scenario does this unlock? Who benefits?
+  - type: checkboxes
+    attributes:
+      label: Scope check
+      options:
+        - label: It works with zero weight files (no model download required)
+        - label: It needs no new heavy dependencies
+        - label: I can write it natively in both README languages if it's user-facing
