@@ -199,7 +199,7 @@ config.yaml     all thresholds, zones, tripwires, event parameters
 - Wrong-way detection on escalators, corridors, one-way lanes
 - Traffic-adjacent counting where a static camera overlooks the scene
 
-## Limitations (honest)
+## Limitations 
 
 - The bundled detector is motion-based: it needs a **static camera** and
   struggles with camouflaged or very slow targets. Plug in a DNN detector
