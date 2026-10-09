@@ -1,8 +1,13 @@
 # cv-tracker
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![OpenCV](https://img.shields.io/badge/OpenCV-4.x-green.svg)](https://opencv.org/)
+[![Tests](https://img.shields.io/badge/tests-18%20passing-brightgreen.svg)](#tests)
+
 Real-time multi-object tracking for static cameras. Detection → Kalman-filtered
-tracking → zones/tripwires → behavioral events, in one CLI with zero weight
-files and zero SciPy.
+tracking → zones & tripwires → behavioral events — in one CLI, with **zero
+weight files** and **zero SciPy**.
 
 ```
 frame → [Detector] → [MultiTracker] → [Zones / Tripwires] → [Events] → CSV + summary
@@ -16,54 +21,153 @@ frame → [Detector] → [MultiTracker] → [Zones / Tripwires] → [Events] →
 
 - **Two-stage association (ByteTrack idea).** High-confidence detections match
   first; leftover tracks get a second chance against *low*-confidence
-  detections. Occluded targets are rescued instead of reborn with new IDs.
-- **Kalman filter, constant-velocity model**, with process noise scaled by
-  target size — large boxes tolerate more motion uncertainty without per-scene
-  tuning.
-- **Hungarian algorithm implemented from scratch** (`src/hungarian.py`,
-  O(n³), rectangular matrices). No SciPy, no black box.
-- **Track lifecycle that kills flicker ghosts**: `Tentative → Confirmed →
-  Lost → Deleted`. Only confirmed tracks are reported or counted.
-- **Behavioral events, not just boxes**: loitering, speeding, wrong-way
-  motion, crowding — computed from track history alone, every event carrying
-  its evidence (track id, frame, measured value).
-- **Tracker self-diagnostics.** The session summary reports fragmentation
-  rate and a quality verdict, so you know whether to trust the numbers.
-- **Pluggable detectors.** Ships with a weight-free MOG2 motion detector;
-  subclass `Detector` to plug in YOLO via `cv2.dnn` without touching the
-  tracker.
+  detections. Briefly occluded targets are rescued instead of reborn with new
+  IDs — the single biggest source of ID switches in naive trackers, handled.
+- **Kalman filter with a constant-velocity model**, where the process noise
+  scales with target size. Large, fast boxes get a wider gate than small,
+  distant ones — no per-scene tuning.
+- **Hungarian algorithm implemented from scratch** (`src/hungarian.py`):
+  O(n³) Kuhn-Munkres, rectangular matrices, no SciPy, no black box.
+- **A track lifecycle that kills flicker ghosts**:
+  `Tentative → Confirmed → Lost → Deleted`. Only confirmed tracks are
+  reported, counted, or fed to event detectors.
+- **Behavioral events, not just boxes.** Loitering, speeding, wrong-way
+  motion, and crowding — computed from track history alone, no extra model.
+  Every event carries its evidence (track id, frame, measured value), so
+  results are auditable, not magic.
+- **Tracker self-diagnostics.** The session summary reports a fragmentation
+  rate and a quality verdict, so you know whether to trust the numbers or
+  retune.
+- **Pluggable detectors.** Ships with a weight-free MOG2 motion detector for
+  static cameras; subclass `Detector` to plug in YOLO via `cv2.dnn` without
+  touching the tracker.
 
 ## Quickstart
 
 ```bash
 pip install -r requirements.txt
 
-# webcam
+# webcam, live visualization
 python -m src.main --source 0 --show
 
-# video file, headless, save trajectories
+# video file, headless, save trajectories + summary
 python -m src.main --source traffic.mp4 --no-show --out runs/run1 --max-frames 900
+
+# run the test suite (no camera needed)
+python -m pytest tests/ -q
 ```
 
-Outputs in `--out/`: `trajectories.csv` (frame, track_id, box, center,
-velocity) and `summary.yaml` (counts, speeds, events, track-quality verdict).
+Outputs in `--out/`:
+
+| File | Contents |
+|---|---|
+| `trajectories.csv` | `frame, track_id, x1, y1, x2, y2, cx, cy, vx, vy` per confirmed track |
+| `summary.yaml` | counts, speeds, events, and the track-quality verdict |
+
+## Example session
+
+```
+frame 60: 2 tracks, detect 5.7ms, track 0.4ms
+frame 120: 2 tracks, detect 5.1ms, track 0.3ms
+---- session summary ----
+tracks seen          : 4
+avg lifetime (frames): 40.8
+avg speed (px/s)     : 68.6
+fragmented tracks    : 1
+track quality        : good
+events               : none
+saved trajectories + summary to runs/run1
+```
+
+Per-stage timings print every 60 frames, so you can see exactly where the
+milliseconds go.
+
+## How it works
+
+**Detection.** `MotionDetector` runs MOG2 background subtraction, drops
+shadows, applies open/close morphology, and filters contours by area. Each
+blob is scored by size and fill-ratio (solid objects outrank wispy noise),
+largest first — which helps the matcher prioritize.
+
+**Tracking.** Every frame, each live track is Kalman-predicted forward. Then:
+
+1. *Stage 1* — match tracks against high-confidence detections by IoU cost,
+   solved optimally with the Hungarian algorithm (gated at `max_iou_dist`).
+2. *Stage 2* — match the leftovers against low-confidence detections. This
+   is the ByteTrack insight: a weak glimpse of an occluded target is better
+   than a new ID.
+3. Unmatched high-confidence detections seed new tentative tracks; a track
+   needs `n_init` consecutive hits to become confirmed.
+
+Lost tracks are kept alive for `max_lost` frames on motion prediction alone,
+so brief occlusions don't fragment identities.
+
+**Zones & tripwires.** Polygon zones count entries/exits and measure dwell
+time per track. Directed tripwires report crossing *direction* (stand at p1
+looking at p2: left→right is "forward").
+
+**Events.** Four detectors run on track history only:
+
+| Event | What fires it | Key params |
+|---|---|---|
+| Loitering | track stays within a small radius too long | `radius_px`, `min_frames` |
+| Speeding | smoothed speed exceeds limit | `max_px_per_sec` |
+| Wrong-way | motion opposes the declared flow vector | `flow`, `cos_thresh` |
+| Crowding | too many tracks inside one zone | `max_tracks`, `min_frames` |
+
+Each detector fires once per track (no spam), and every event carries its
+evidence.
 
 ## Configuration
 
-All thresholds live in `config.yaml`: detector sensitivity, tracker
-association gates, zone polygons, tripwire segments, and per-event parameters
-(loitering radius/frames, speed limit, flow direction, crowd limit).
+Everything lives in `config.yaml` — no code changes needed to retune:
+
+```yaml
+detector:
+  min_area: 500        # ignore blobs smaller than this (px^2)
+  history: 500         # MOG2 background history (frames)
+  var_threshold: 16    # MOG2 sensitivity; lower = more sensitive
+
+tracker:
+  high_thresh: 0.5     # stage-1 association threshold
+  low_thresh: 0.15     # stage-2 rescue threshold
+  max_iou_dist: 0.7    # reject matches with cost above this (1 - IoU)
+  n_init: 3            # hits before Tentative -> Confirmed
+  max_age: 30          # frames before a Tentative track is deleted
+  max_lost: 60         # frames before a Lost track is deleted
+
+zones:
+  - name: "door"
+    polygon: [[40, 200], [280, 200], [280, 440], [40, 440]]
+
+tripwires:
+  - name: "gate"
+    p1: [160, 60]
+    p2: [160, 420]
+
+events:
+  loitering: { enabled: true, radius_px: 40, min_frames: 150 }
+  speeding:  { enabled: true, max_px_per_sec: 300 }
+  wrong_way: { enabled: true, flow: [1, 0] }
+  crowding:  { enabled: false, max_tracks: 5 }
+```
 
 ## Tests
+
+18 tests, all on synthetic data — no camera needed:
 
 ```bash
 python -m pytest tests/ -q
 ```
 
-18 tests, all synthetic (no camera needed): Hungarian optimality on square
-and rectangular matrices, ID stability through occlusion with weak-detection
-rescue, ghost filtering, zone enter/exit + dwell, tripwire direction,
-and every behavioral event firing exactly once.
+- `test_hungarian.py` — optimality on square/rectangular matrices, ties, empties
+- `test_tracker.py` — two targets tracked for 60 frames; **no ID switch**
+  through a 5-frame occlusion rescued by weak detections; flicker ghosts never
+  confirm; lost tracks are deleted
+- `test_zones.py` — zone enter/exit + dwell frames; tripwire direction;
+  vanished tracks are forgotten
+- `test_events.py` — each behavioral event fires exactly once, and stays
+  silent for well-behaved targets
 
 ## Project layout
 
@@ -77,7 +181,17 @@ src/
   events.py     loitering / speeding / wrong-way / crowding detectors
   analytics.py  trajectory CSV recording + session summary + quality check
   main.py       CLI, per-stage timing, live visualization
+tests/          18 synthetic tests, no camera required
+config.yaml     all thresholds, zones, tripwires, event parameters
 ```
+
+## Use cases
+
+- Retail footfall counting and dwell-time analysis
+- Entry/exit counting at doors and gates
+- Loitering alerts for unattended areas
+- Wrong-way detection on escalators, corridors, one-way lanes
+- Traffic-adjacent counting where a static camera overlooks the scene
 
 ## Limitations (honest)
 
@@ -85,10 +199,18 @@ src/
   struggles with camouflaged or very slow targets. Plug in a DNN detector
   for the general case.
 - No appearance (ReID) features — identity survives short occlusions via
-  motion prediction, not long ones via looks. That's a deliberate trade-off
-  for zero weights and CPU-only real-time.
-- Pixel-space speeds/distances: calibrate to meters if you need real units.
+  motion prediction, not long ones via looks. A deliberate trade-off for zero
+  weights and CPU-only real-time.
+- Pixel-space speeds and distances: calibrate to meters if you need real
+  units.
+
+## Roadmap
+
+- [ ] YOLOv8 DNN detector plug-in (`cv2.dnn`, still zero extra deps beyond weights)
+- [ ] Appearance embeddings for long-occlusion re-identification
+- [ ] Multi-camera handoff
+- [ ] Web dashboard for live counts and event feed
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).
