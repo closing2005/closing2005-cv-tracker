@@ -93,6 +93,21 @@ python examples/synthetic_demo.py --out demo_out
 # demo_out/summary.yaml - session summary
 ```
 
+## Real-world demo
+
+`examples/station_demo.py` runs the full pipeline on real footage —
+YOLO person detection → tracker with re-ID → tripwire counting:
+
+```bash
+python scripts/download_model.py   # weights/yolo11n.onnx, once
+python examples/station_demo.py --source market.mp4 --out runs/market.mp4 \
+    --conf 0.25 --max-lost 90 --reid-thresh 0.4
+# --exclude "x1,y1,x2,y2" masks billboards / false-positive zones
+```
+
+Tested on an 18-second fish-market clip (fixed camera, ~12 people):
+8 up / 12 down across the tripwire, stable IDs throughout.
+
 ## Benchmark
 
 Measured on a 640×480 @ 30fps synthetic stream, CPU only (no GPU, no weights):

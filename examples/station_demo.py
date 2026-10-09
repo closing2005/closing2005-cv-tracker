@@ -23,6 +23,8 @@ def main():
     ap.add_argument("--out", default="runs/station_result.mp4")
     ap.add_argument("--weights", default="weights/yolo11n.onnx")
     ap.add_argument("--conf", type=float, default=0.4)
+    ap.add_argument("--max-lost", type=int, default=30)
+    ap.add_argument("--reid-thresh", type=float, default=0.5)
     ap.add_argument("--exclude", default="",
                     help="mask regions as x1,y1,x2,y2;... (e.g. billboards)")
     args = ap.parse_args()
@@ -34,7 +36,8 @@ def main():
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
 
     det = YoloDetector(args.weights, conf_thresh=args.conf, classes=["person"])
-    tracker = MultiTracker(n_init=3, max_lost=30, use_reid=True, reid_thresh=0.5)
+    tracker = MultiTracker(n_init=3, max_lost=args.max_lost,
+                           use_reid=True, reid_thresh=args.reid_thresh)
 
     # 屏蔽区域（如广告牌）：落在其中的检测框直接丢弃
     masks = []

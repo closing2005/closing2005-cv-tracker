@@ -75,6 +75,21 @@ python examples/synthetic_demo.py --out demo_out
 # demo_out/summary.yaml - 会话摘要
 ```
 
+## 真实场景演示
+
+`examples/station_demo.py` 在真实视频上跑完整流程——
+YOLO 行人检测 → 带重识别的跟踪器 → 绊线计数：
+
+```bash
+python scripts/download_model.py   # 下载 weights/yolo11n.onnx，只需一次
+python examples/station_demo.py --source market.mp4 --out runs/market.mp4 \
+    --conf 0.25 --max-lost 90 --reid-thresh 0.4
+# --exclude "x1,y1,x2,y2" 可屏蔽广告牌等误检区域
+```
+
+已在一段 18 秒的鱼市场实拍（固定机位，约 12 人）上验证：
+绊线上行 8 / 下行 12，全程 ID 稳定。
+
 ## 运行示例
 
 ```
